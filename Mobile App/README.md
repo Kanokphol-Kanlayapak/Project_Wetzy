@@ -16,6 +16,10 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npx expo start
    ```
 
+## Maps
+
+The risk map uses OpenStreetMap tiles on web and mobile, with interactive risk markers and no Google Maps or Gemini API key. Keep the visible OpenStreetMap attribution on the map. The public OpenStreetMap tile server is best-effort with no availability guarantee and has limited capacity; follow its [tile usage policy](https://operations.osmfoundation.org/policies/tiles/), and use a tile provider with suitable terms or self-host tiles for production traffic.
+
 In the output, you'll find options to open the app in a
 
 - [development build](https://docs.expo.dev/develop/development-builds/introduction/)

@@ -1,13 +1,14 @@
 import { useMemo, useRef, useState } from 'react';
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { areas, tabRoutes } from './wetzy-data';
 import { RiskMap } from './RiskMap';
 
-const navy = '#0b3974';
-const blue = '#1689df';
 const mainRoutes = new Set(tabRoutes);
+const rankedAreas = [...areas].sort((a, b) => b.score - a.score);
+const highRiskCount = areas.filter((area) => area.level === 'สูง').length;
+const averageRiskScore = Math.round(areas.reduce((total, area) => total + area.score, 0) / areas.length);
 
 function Label({ children, className = '', style }) { return <Text className={`text-[#0b3974] ${className}`} style={style}>{children}</Text>; }
 function Card({ children, className = '' }) { return <View className={`rounded-2xl border border-sky-100 bg-white p-4 ${className}`}>{children}</View>; }
@@ -24,7 +25,7 @@ function Header({ title, back = true, right, onRight }) {
   </View>;
 }
 function BottomTabs({ active }) {
-  const tabs = [['/','⌂','หน้าหลัก'], ['/areas','◧','พื้นที่เสี่ยง'], ['/forecast','⌁','พยากรณ์'], ['/data','◉','ข้อมูล'], ['/about','ⓘ','เกี่ยวกับ']];
+  const tabs = [['/','⌂','หน้าหลัก'], ['/areas','◧','พื้นที่เสี่ยง'], ['/data','◉','ข้อมูล'], ['/about','ⓘ','เกี่ยวกับ']];
   return <View className="flex-row border-t border-sky-100 bg-white px-1 pt-2">{tabs.map(([route, icon, title]) => {
     const selected = active === route || (active === '/map' && route === '/areas');
     return <Pressable key={route} onPress={() => router.replace(route)} accessibilityRole="tab" accessibilityState={{ selected }} className="min-h-12 flex-1 items-center py-1">
@@ -33,32 +34,12 @@ function BottomTabs({ active }) {
   })}</View>;
 }
 
-function HomeBackground() {
-  return <View pointerEvents="none" style={StyleSheet.absoluteFillObject} className="overflow-hidden bg-[#a8e2ff]">
-    <Text style={{ position: 'absolute', left: '8%', top: '18%' }} className="text-4xl">☁️</Text>
-    <Text style={{ position: 'absolute', right: '10%', top: '25%' }} className="text-3xl">☁️</Text>
-    <Text style={{ position: 'absolute', right: '35%', top: '10%' }} className="text-2xl">☁️</Text>
-    <View style={{ position: 'absolute', left: '-15%', right: '38%', bottom: '29%', height: 110, borderRadius: 100, backgroundColor: '#80c99a' }} />
-    <View style={{ position: 'absolute', left: '35%', right: '-20%', bottom: '27%', height: 140, borderRadius: 120, backgroundColor: '#6dbf91' }} />
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '31%', backgroundColor: '#58bce5' }} />
-    <View style={{ position: 'absolute', left: 0, right: 0, bottom: '25%', height: 14, backgroundColor: '#82d8e6' }} />
-    <View style={{ position: 'absolute', left: '7%', bottom: '28%' }}><Text className="text-5xl">🌴</Text></View>
-    <View style={{ position: 'absolute', left: '29%', bottom: '27%' }}><Text className="text-4xl">⌂</Text></View>
-    <View style={{ position: 'absolute', left: '47%', bottom: '27%' }}><Text className="text-4xl">⌂</Text></View>
-    <View style={{ position: 'absolute', right: '27%', bottom: '27%' }}><Text className="text-5xl">🗼</Text></View>
-    <View style={{ position: 'absolute', right: '5%', bottom: '28%' }}><Text className="text-5xl">🌴</Text></View>
-    <Text style={{ position: 'absolute', left: '18%', bottom: '8%' }} className="text-2xl">〰️　〰️　〰️</Text>
-  </View>;
-}
-
 export default function WetzyScreen({ screen }) {
   const pathname = usePathname();
   const params = useLocalSearchParams();
   const [query, setQuery] = useState('');
   const [mapMode, setMapMode] = useState(true);
   const [helpOpen, setHelpOpen] = useState('');
-  const lastX = useRef(0);
-  const lastY = useRef(0);
   const activeAreaIndex = Number(params.area || 0);
   const activeArea = areas[Number.isInteger(activeAreaIndex) && activeAreaIndex >= 0 && activeAreaIndex < areas.length ? activeAreaIndex : 0];
   const filtered = useMemo(() => areas.filter((area) => area.name.includes(query) || area.short.includes(query)), [query]);
@@ -66,7 +47,6 @@ export default function WetzyScreen({ screen }) {
   const gestures = useRef(PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, g) => mainRoutes.has(pathname) && Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-    onPanResponderGrant: (_, g) => { lastX.current = g.x0; lastY.current = g.y0; },
     onPanResponderRelease: (_, g) => {
       if (!mainRoutes.has(pathname) || Math.abs(g.dx) < 60 || Math.abs(g.dx) < Math.abs(g.dy) * 1.5) return;
       const index = tabRoutes.indexOf(pathname);
@@ -76,14 +56,70 @@ export default function WetzyScreen({ screen }) {
   })).current;
 
   return <SafeAreaView className="flex-1 bg-[#f3faff]" edges={['top','bottom']} {...gestures.panHandlers}>
-    {screen === 'home' ? <HomeBackground /> : null}
     <View className="flex-1">
-      {screen === 'home' && <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ flexGrow: 1, paddingHorizontal: 20, paddingTop: 26, paddingBottom: 16 }}>
-        <View className="items-center"><View className="flex-row items-center"><Text className="mr-2 text-5xl text-[#1689df]">◉</Text><Text className="text-4xl font-extrabold tracking-tight text-[#07539d]">Wetzy</Text></View>
-          <Label className="mt-1 text-2xl font-extrabold">รู้ก่อน น้ำมา</Label><Label className="mt-1 text-center text-base leading-6">ตรวจสอบความเสี่ยงน้ำท่วม{ '\n' }ในพื้นที่เสี่ยงของคุณ</Label></View>
-        <View className="min-h-10 flex-1" />
-        <Card className="mb-3 bg-white/95 p-4 shadow-md"><Label className="mb-1 text-xs text-slate-500">จังหวัด</Label><Pressable onPress={() => router.push('/areas')} className="mb-3 min-h-11 flex-row items-center justify-between rounded-xl border border-sky-100 px-3"><Label className="font-semibold">นครศรีธรรมราช</Label><Label>⌄</Label></Pressable><Pressable onPress={() => router.push('/areas')} className="items-center rounded-full bg-[#1689df] py-3"><Text className="font-bold text-white">⌕　ตรวจสอบความเสี่ยง</Text></Pressable></Card>
-        <Card className="flex-row items-center bg-white/95 p-4 shadow-md"><View className="mr-3 h-14 w-14 items-center justify-center rounded-full bg-sky-100"><Text className="text-2xl">🌊</Text></View><Label className="flex-1 text-sm leading-5">โฟกัสพื้นที่เสี่ยงน้ำท่วมซ้ำ{ '\n' }ในจังหวัดนครศรีธรรมราช{ '\n' }และคาดการณ์ล่วงหน้า 1 วัน</Label></Card>
+      {screen === 'home' && <ScrollView className="flex-1" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 20 }}>
+        <View className="mb-4 flex-row items-center justify-between">
+          <View>
+            <Text className="text-2xl font-extrabold tracking-tight text-[#07539d]">Wetzy</Text>
+            <Label className="mt-1 text-sm">สรุปความเสี่ยง · นครศรีธรรมราช</Label>
+          </View>
+        </View>
+
+        <Pressable onPress={() => openDetail(rankedAreas[0])} accessibilityRole="button" className="mb-3 rounded-3xl bg-[#07539d] p-5">
+          <View className="mb-3 flex-row items-center justify-between">
+            <Text className="text-sm font-semibold text-sky-100">จุดเสี่ยงสูงสุด</Text>
+            <Pill value={rankedAreas[0].level} />
+          </View>
+          <Text className="text-xl font-bold text-white">{rankedAreas[0].short}</Text>
+          <View className="mt-4 flex-row items-end">
+            <Text className="text-5xl font-extrabold text-white">{rankedAreas[0].score}</Text>
+            <Text className="mb-1 ml-1 text-lg text-sky-100">/100</Text>
+            <Text className="mb-2 ml-auto text-sm font-semibold text-sky-100">คะแนนความเสี่ยง</Text>
+          </View>
+          <View className="mt-3 h-2 overflow-hidden rounded-full bg-white/25">
+            <View style={{ width: `${rankedAreas[0].score}%` }} className="h-full rounded-full bg-red-400" />
+          </View>
+          <Text className="mt-3 text-xs text-sky-100">แตะเพื่อดูรายละเอียดพื้นที่ →</Text>
+        </Pressable>
+
+        <View className="mb-5 flex-row gap-3">
+          <Card className="flex-1 p-4">
+            <Text className="text-xs text-slate-500">พื้นที่เสี่ยงสูง</Text>
+            <View className="mt-2 flex-row items-baseline">
+              <Label className="text-3xl font-extrabold">{highRiskCount}</Label>
+              <Label className="ml-1 text-xs">จาก {areas.length} พื้นที่</Label>
+            </View>
+          </Card>
+          <Card className="flex-1 p-4">
+            <Text className="text-xs text-slate-500">คะแนนเฉลี่ย</Text>
+            <View className="mt-2 flex-row items-baseline">
+              <Label className="text-3xl font-extrabold">{averageRiskScore}</Label>
+              <Label className="ml-1 text-xs">/100</Label>
+            </View>
+          </Card>
+        </View>
+
+        <View className="mb-3 flex-row items-center justify-between">
+          <Label className="text-base font-bold">พื้นที่ควรติดตาม</Label>
+          <Pressable onPress={() => router.push('/areas')} accessibilityRole="button" className="px-2 py-1">
+            <Text className="text-sm font-semibold text-[#1689df]">ดูทั้งหมด →</Text>
+          </Pressable>
+        </View>
+        {rankedAreas.slice(0, 3).map((area) => <Pressable
+          key={area.name}
+          onPress={() => openDetail(area)}
+          accessibilityRole="button"
+          className="mb-2 flex-row items-center rounded-2xl border border-sky-100 bg-white px-3 py-3"
+        >
+          <View style={{ backgroundColor: area.color }} className="mr-3 h-3 w-3 rounded-full" />
+          <View className="flex-1">
+            <Label className="text-sm font-semibold">{area.short}</Label>
+            <Text className="mt-1 text-xs text-slate-500">คะแนนความเสี่ยง {area.score}/100</Text>
+          </View>
+          <Pill value={area.level} />
+          <Text className="ml-2 text-lg text-blue-600">›</Text>
+        </Pressable>)}
+
       </ScrollView>}
 
       {screen === 'areas' && <View className="flex-1 px-4 pt-2"><Header title="เลือกพื้นที่เสี่ยง" back={router.canGoBack()} right="แผนที่" onRight={() => router.push('/map')} />
@@ -113,7 +149,7 @@ export default function WetzyScreen({ screen }) {
 
       {screen === 'data' && <ScrollView className="flex-1 px-4 pt-3"><Header title="ข้อมูลพื้นที่" back={false}/><Label className="mb-3 text-sm">ภาพรวมความเสี่ยงในจังหวัดนครศรีธรรมราช</Label>{areas.map((area) => <Pressable key={area.name} onPress={() => openDetail(area)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 bg-white p-3"><View style={{ backgroundColor: area.color }} className="mr-3 h-3 w-3 rounded-full"/><Label className="flex-1 text-sm">{area.short}</Label><Label className="mr-3 font-bold">{area.score}%</Label><Pill value={area.level}/></Pressable>)}</ScrollView>}
 
-      {screen === 'about' && <ScrollView className="flex-1 px-4 pt-3"><Header title="เกี่ยวกับ Wetzy" back={false}/><Card className="mb-3"><View className="my-2 flex-row items-center"><Text className="mr-3 text-5xl text-blue-500">◉</Text><View><Text className="text-2xl font-extrabold text-[#07539d]">Wetzy</Text><Text className="text-xs text-blue-700">Know Before It Flows.</Text></View></View><Label className="text-sm leading-6">Wetzy Demo ช่วยสื่อสารความเสี่ยงน้ำท่วมจากข้อมูลตัวอย่างด้านฝน ระดับน้ำ และพื้นที่เกิดน้ำท่วมซ้ำ เพื่อให้ผู้ใช้เตรียมตัวล่วงหน้า</Label></Card><Card><Label className="mb-2 font-bold">ข้อมูลโครงการ</Label>{[['ⓘ','วัตถุประสงค์'],['◉','ขอบเขตข้อมูลตัวอย่าง'],['⌖','พื้นที่ศึกษา: นครศรีธรรมราช']].map(([icon,title]) => <Pressable key={title} onPress={() => setHelpOpen(helpOpen === title ? '' : title)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 px-3 py-3"><Text className="mr-3 text-blue-500">{icon}</Text><Label className="flex-1 text-sm">{title}</Label><Label>›</Label>{helpOpen === title ? <Label className="basis-full pt-2 text-xs">ใช้สำหรับสาธิตหน้าจอและลำดับการใช้งาน Wetzy</Label> : null}</Pressable>)}</Card></ScrollView>}
+      {screen === 'about' && <ScrollView className="flex-1 px-4 pt-3"><Header title="เกี่ยวกับ Wetzy" back={false}/><Card className="mb-3"><View className="my-2 flex-row items-center"><Text className="mr-3 text-5xl text-blue-500">◉</Text><View><Text className="text-2xl font-extrabold text-[#07539d]">Wetzy</Text><Text className="text-xs text-blue-700">Know Before It Flows.</Text></View></View><Label className="text-sm leading-6">ติดตามความเสี่ยงน้ำท่วมจากปริมาณฝน ระดับน้ำ และประวัติน้ำท่วม เพื่อช่วยให้คุณวางแผนรับมือได้ล่วงหน้า</Label></Card><Card><Label className="mb-2 font-bold">ข้อมูลโครงการ</Label>{[['ⓘ','วัตถุประสงค์','ติดตามและทำความเข้าใจความเสี่ยงน้ำท่วมในแต่ละพื้นที่'],['◉','การประเมินความเสี่ยง','พิจารณาจากปริมาณฝน ระดับน้ำ และประวัติน้ำท่วม'],['⌖','พื้นที่ศึกษา: นครศรีธรรมราช','ดูภาพรวมและรายละเอียดความเสี่ยงแยกตามอำเภอ']].map(([icon,title,description]) => <Pressable key={title} onPress={() => setHelpOpen(helpOpen === title ? '' : title)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 px-3 py-3"><Text className="mr-3 text-blue-500">{icon}</Text><Label className="flex-1 text-sm">{title}</Label><Label>›</Label>{helpOpen === title ? <Label className="basis-full pt-2 text-xs">{description}</Label> : null}</Pressable>)}</Card></ScrollView>}
     </View>
     <BottomTabs active={pathname}/>
   </SafeAreaView>;
