@@ -1,1 +1,1 @@
-export const tabRoutes = ['/', '/areas', '/data', '/about'];
+export const tabRoutes = ['/', '/areas', '/data', '/profile'];

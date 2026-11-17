@@ -2,25 +2,53 @@ const cors = require('cors');
 const express = require('express');
 const { getMlServiceStatus } = require('./services/ml-service');
 const { createApiRouter } = require('./routes/api');
+const { createAuthRouter } = require('./routes/auth');
+const { createNotificationRouter } = require('./routes/notifications');
+const { createAuthService } = require('./services/auth-service');
+const mongoose = require('mongoose');
 
-function createApp(config) {
+function createApp(config = {}, options = {}) {
+  const normalizedConfig = {
+    corsOrigins: Array.isArray(config.corsOrigins) ? config.corsOrigins : ['*'],
+    mlServiceUrl: (config.mlServiceUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
+    mlServiceTimeoutMs: Number(config.mlServiceTimeoutMs || 5000),
+    port: Number(config.port || 3000),
+    mongoUri: (config.mongoUri || '').trim(),
+    jwtSecret: config.jwtSecret || '',
+    jwtExpiresIn: config.jwtExpiresIn || '7d',
+    initialSuperAdmin: config.initialSuperAdmin || {
+      username: '',
+      email: '',
+      password: '',
+    },
+  };
+
   const app = express();
-  const corsOrigin = config.corsOrigins.includes('*') ? '*' : config.corsOrigins;
+  const corsOrigin = normalizedConfig.corsOrigins.includes('*') ? '*' : normalizedConfig.corsOrigins;
 
   app.disable('x-powered-by');
   app.use(cors({ origin: corsOrigin }));
   app.use(express.json({ limit: '32kb' }));
 
   app.get('/health', async (_request, response) => {
-    const mlService = await getMlServiceStatus(config);
+    const mlService = await getMlServiceStatus(normalizedConfig);
+    const mongo = {
+      connected: mongoose.connection.readyState === 1,
+      database: mongoose.connection.readyState === 1 ? mongoose.connection.name : null,
+    };
     response.json({
-      status: mlService.reachable && mlService.modelAvailable ? 'ok' : 'degraded',
+      status: mongo.connected && mlService.reachable && mlService.modelAvailable ? 'ok' : 'degraded',
       service: 'wetzy-backend',
-      dependencies: { mlService },
+      dependencies: { mongo, mlService },
     });
   });
 
-  app.use('/api', createApiRouter(config));
+  const authService = options.authService || createAuthService(normalizedConfig);
+  app.locals.authService = authService;
+
+  app.use('/api', createApiRouter(normalizedConfig));
+  app.use('/api/auth', createAuthRouter(normalizedConfig, authService));
+  app.use('/api/notifications', createNotificationRouter(normalizedConfig, authService));
 
   app.use((_request, _response, next) => {
     const error = new Error('Route not found');

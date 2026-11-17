@@ -23,7 +23,7 @@ before(async () => {
       return;
     }
 
-    if (request.url === '/areas') {
+    if (request.url === '/areas' || request.url.startsWith('/areas?')) {
       response.end(JSON.stringify({ areas: [{ id: 'test-area', district: 'Test District' }] }));
       return;
     }
@@ -67,6 +67,25 @@ test('area list is forwarded as JSON without adding local data', async () => {
     areas: [{ id: 'test-area', district: 'Test District' }],
   });
   assert.equal(response.headers.get('access-control-allow-origin'), '*');
+});
+
+test('province filters are forwarded to the ML area endpoint', async () => {
+  const response = await fetch(`${apiUrl}/api/areas?province=${encodeURIComponent('Test Province')}`);
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), {
+    areas: [{ id: 'test-area', district: 'Test District' }],
+  });
+});
+
+test('empty or repeated province filters are rejected', async () => {
+  const emptyProvince = await fetch(`${apiUrl}/api/areas?province=%20`);
+  const repeatedProvince = await fetch(`${apiUrl}/api/areas?province=one&province=two`);
+
+  assert.equal(emptyProvince.status, 400);
+  assert.equal((await emptyProvince.json()).error.code, 'INVALID_PROVINCE');
+  assert.equal(repeatedProvince.status, 400);
+  assert.equal((await repeatedProvince.json()).error.code, 'INVALID_PROVINCE');
 });
 
 test('district forecast errors are returned explicitly', async () => {

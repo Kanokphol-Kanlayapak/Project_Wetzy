@@ -22,7 +22,13 @@ The risk map uses OpenStreetMap tiles on web and mobile, with interactive risk m
 
 ## Backend API
 
-Create a local `.env` file with `EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_IP:3000/api`, replacing the host with an address reachable from the device or browser. Start the Express API from `Backend/` with `npm start`. The app requests area, detail, and forecast data through this API and shows loading, error, and empty states instead of sample risk data. A running backend does not imply that the Machine Learning service or a trained model is available; check `GET /health`.
+The Expo project root is `Mobile App/`. Create `.env` there with `EXPO_PUBLIC_API_URL` pointing to the Express API base URL, including `/api`:
+
+```env
+EXPO_PUBLIC_API_URL=http://127.0.0.1:3000/api
+```
+
+For Expo Go on a phone, replace `127.0.0.1` with the development computer's LAN IP address. Start the Backend from `Backend/` with `npm start`, then start Expo from `Mobile App/` with `npm run web` (or `npm start` for Expo Go). Restart Expo after changing `.env` so the public variable is included in the bundle. The app requests area, detail, and forecast data through this API and shows loading, error, and empty states instead of sample risk data. A running backend does not imply that the Machine Learning service or a trained model is available; check `GET /health`.
 
 In the output, you'll find options to open the app in a
 

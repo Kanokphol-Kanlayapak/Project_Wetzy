@@ -3,6 +3,7 @@ import { PanResponder, Pressable, ScrollView, Text, TextInput, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams, usePathname } from 'expo-router';
 import { ApiError, fetchArea, fetchAreas, fetchForecast } from '../services/api';
+import { useStaffAuth } from '../contexts/StaffAuthContext';
 import { tabRoutes } from './wetzy-data';
 import { RiskMap } from './RiskMap';
 
@@ -22,7 +23,7 @@ function Header({ title, back = true, right, onRight }) {
   </View>;
 }
 function BottomTabs({ active }) {
-  const tabs = [['/', '⌂', 'หน้าหลัก'], ['/areas', '◧', 'พื้นที่'], ['/data', '◉', 'ข้อมูล'], ['/about', 'ⓘ', 'เกี่ยวกับ']];
+  const tabs = [['/', '⌂', 'หน้าหลัก'], ['/areas', '◧', 'พื้นที่'], ['/data', '◉', 'ข้อมูล'], ['/profile', '♙', 'โปรไฟล์']];
   return <View className="flex-row border-t border-sky-100 bg-white px-1 pt-2">{tabs.map(([route, icon, title]) => {
     const selected = active === route || (active === '/map' && route === '/areas');
     return <Pressable key={route} onPress={() => router.replace(route)} accessibilityRole="tab" accessibilityState={{ selected }} className="min-h-12 flex-1 items-center py-1">
@@ -50,6 +51,11 @@ function displayValue(value, unit = '') {
   if (value === null || value === undefined || value === '') return 'ไม่มีข้อมูล';
   return `${value}${unit}`;
 }
+function observedFloodStatus(area) {
+  const observation = area?.observations;
+  if (typeof observation?.flooded !== 'boolean') return 'ไม่มีข้อมูลย้อนหลัง';
+  return observation.floodStatus || (observation.flooded ? 'ท่วม' : 'ไม่ท่วม');
+}
 function errorMessage(error) {
   return error instanceof ApiError ? error.message : 'เกิดข้อผิดพลาดในการโหลดข้อมูล';
 }
@@ -57,9 +63,11 @@ function errorMessage(error) {
 export default function WetzyScreen({ screen }) {
   const pathname = usePathname();
   const params = useLocalSearchParams();
+  const { user, isLoading: authLoading, sessionError, logout } = useStaffAuth();
   const [query, setQuery] = useState('');
   const [mapMode, setMapMode] = useState(true);
   const [helpOpen, setHelpOpen] = useState('');
+  const [logoutError, setLogoutError] = useState('');
   const [areas, setAreas] = useState([]);
   const [areasLoading, setAreasLoading] = useState(true);
   const [areasError, setAreasError] = useState(null);
@@ -131,6 +139,14 @@ export default function WetzyScreen({ screen }) {
     if (areasError) loadAreas();
     setDetailRetryKey((key) => key + 1);
   }, [areasError, loadAreas]);
+  const handleLogout = useCallback(async () => {
+    setLogoutError('');
+    try {
+      await logout();
+    } catch {
+      setLogoutError('ล้างสถานะในแอปแล้ว แต่ไม่สามารถบันทึกการออกจากระบบที่ Backend ได้');
+    }
+  }, [logout]);
   const panHandlers = useMemo(() => PanResponder.create({
     onStartShouldSetPanResponder: () => false,
     onMoveShouldSetPanResponder: (_, g) => mainRoutes.has(pathname) && Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
@@ -169,7 +185,10 @@ export default function WetzyScreen({ screen }) {
               <Text className="mb-2 ml-auto text-sm font-semibold text-sky-100">ค่าจาก Backend</Text>
             </View>
             <Text className="mt-3 text-xs text-sky-100">{rankedAreas[0].prediction?.periodLabel || 'ช่วงเวลาพยากรณ์ไม่ได้ระบุ'}</Text>
-          </Pressable> : <StatusMessage title="ไม่มีข้อมูลการประเมิน" />}
+          </Pressable> : <StatusMessage
+            title="ยังไม่มีผลพยากรณ์จากโมเดล"
+            message="สถานะน้ำท่วมที่แสดงเป็นข้อมูลย้อนหลังจาก Dataset ไม่ใช่การทำนาย"
+          />}
 
           <View className="mb-5 flex-row gap-3">
             <Card className="flex-1 p-4">
@@ -177,18 +196,20 @@ export default function WetzyScreen({ screen }) {
               <Label className="mt-2 text-3xl font-extrabold">{areas.length}</Label>
             </Card>
             <Card className="flex-1 p-4">
-              <Text className="text-xs text-slate-500">พื้นที่ที่มีผลประเมิน</Text>
+              <Text className="text-xs text-slate-500">พื้นที่ที่มีผลพยากรณ์จากโมเดล</Text>
               <Label className="mt-2 text-3xl font-extrabold">{rankedAreas.length}</Label>
             </Card>
           </View>
 
           <View className="mb-3 flex-row items-center justify-between">
-            <Label className="text-base font-bold">พื้นที่ที่มีผลประเมิน</Label>
+            <Label className="text-base font-bold">
+              {rankedAreas.length > 0 ? 'พื้นที่ที่มีผลประเมิน' : 'สถานะน้ำท่วมล่าสุด (ข้อมูลย้อนหลัง)'}
+            </Label>
             <Pressable onPress={() => router.push('/areas')} accessibilityRole="button" className="px-2 py-1">
               <Text className="text-sm font-semibold text-[#1689df]">ดูทั้งหมด →</Text>
             </Pressable>
           </View>
-          {rankedAreas.slice(0, 3).map((area) => <Pressable
+          {(rankedAreas.length > 0 ? rankedAreas : areas).slice(0, 3).map((area) => <Pressable
             key={area.id}
             onPress={() => openDetail(area)}
             accessibilityRole="button"
@@ -197,9 +218,13 @@ export default function WetzyScreen({ screen }) {
             <View className="mr-3 h-3 w-3 rounded-full bg-sky-500" />
             <View className="flex-1">
               <Label className="text-sm font-semibold">{displayAreaName(area)}</Label>
-              <Text className="mt-1 text-xs text-slate-500">{displayProbability(area.prediction?.riskProbabilityPercent)}</Text>
+              <Text className="mt-1 text-xs text-slate-500">
+                {area.prediction
+                  ? displayProbability(area.prediction.riskProbabilityPercent)
+                  : `ข้อมูลล่าสุด ${area.observations?.recordedAt || 'ไม่ระบุวันที่'}`}
+              </Text>
             </View>
-            <Pill value={area.prediction?.riskLevel} />
+            <Pill value={area.prediction?.riskLevel || observedFloodStatus(area)} />
             <Text className="ml-2 text-lg text-blue-600">›</Text>
           </Pressable>)}
         </>}
@@ -209,11 +234,11 @@ export default function WetzyScreen({ screen }) {
         <Header title="เลือกพื้นที่" back={router.canGoBack()} right="แผนที่" onRight={() => router.push('/map')} />
         <Card className="mb-3 flex-row items-center bg-[#e4f5ff] py-3">
           <Text className="mr-3 text-3xl">📍</Text>
-          <View><Label className="font-bold">{provinces.length === 1 ? provinces[0] : 'พื้นที่จากข้อมูลจริง'}</Label><Label className="text-xs text-slate-500">รายชื่อรับจาก Backend</Label></View>
+          <View><Label className="font-bold">{provinces.length === 1 ? provinces[0] : 'พื้นที่จากข้อมูลจริง'}</Label><Label className="text-xs text-slate-500">สถานะจาก Dataset ย้อนหลัง ไม่ใช่ผลพยากรณ์</Label></View>
         </Card>
         <View className="mb-2 flex-row items-center rounded-xl border border-sky-200 bg-white px-3"><Text className="mr-2 text-lg text-slate-400">⌕</Text><TextInput value={query} onChangeText={setQuery} placeholder="ค้นหาอำเภอ..." placeholderTextColor="#8ba2b8" className="h-11 flex-1 text-sm text-[#0b3974]" /></View>
         {listStatus || <ScrollView showsVerticalScrollIndicator={false}>
-          {filtered.length === 0 ? <StatusMessage title="ไม่พบพื้นที่" /> : filtered.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 bg-white px-3 py-3"><Text className="mr-3 text-lg text-sky-500">●</Text><Label className="flex-1 text-sm font-semibold">{area.name || area.district}</Label><Pill value={area.prediction?.riskLevel}/><Text className="ml-3 text-xl text-blue-600">›</Text></Pressable>)}
+          {filtered.length === 0 ? <StatusMessage title="ไม่พบพื้นที่" /> : filtered.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 bg-white px-3 py-3"><Text className="mr-3 text-lg text-sky-500">●</Text><View className="flex-1"><Label className="text-sm font-semibold">{area.name || area.district}</Label><Text className="mt-1 text-xs text-slate-500">{area.observations?.recordedAt || ''}</Text></View><Pill value={area.prediction?.riskLevel || observedFloodStatus(area)}/><Text className="ml-3 text-xl text-blue-600">›</Text></Pressable>)}
         </ScrollView>}
       </View>}
 
@@ -221,7 +246,7 @@ export default function WetzyScreen({ screen }) {
         <View className="mb-2 flex-row rounded-full border border-sky-200 bg-white p-1"><Pressable onPress={() => setMapMode(true)} className={`flex-1 items-center rounded-full py-2 ${mapMode ? 'bg-[#1689df]' : ''}`}><Text className={mapMode ? 'font-bold text-white' : 'text-blue-700'}>แผนที่</Text></Pressable><Pressable onPress={() => setMapMode(false)} className={`flex-1 items-center rounded-full py-2 ${!mapMode ? 'bg-[#1689df]' : ''}`}><Text className={!mapMode ? 'font-bold text-white' : 'text-blue-700'}>รายการพื้นที่</Text></Pressable></View>
         {listStatus || (mapMode
           ? <RiskMap areas={areas} onSelect={openDetail}/>
-          : <ScrollView>{areas.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center justify-between rounded-xl border border-sky-100 bg-white p-3"><Label>{displayAreaName(area)}</Label><Pill value={area.prediction?.riskLevel}/></Pressable>)}</ScrollView>)}
+          : <ScrollView>{areas.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center justify-between rounded-xl border border-sky-100 bg-white p-3"><Label>{displayAreaName(area)}</Label><Pill value={area.prediction?.riskLevel || observedFloodStatus(area)}/></Pressable>)}</ScrollView>)}
       </View>}
 
       {screen === 'detail' && <View className="flex-1 px-4 pt-2"><Header title="รายละเอียดพื้นที่"/><ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 12 }}>
@@ -234,14 +259,21 @@ export default function WetzyScreen({ screen }) {
               : <>
                 <Card className="mb-2 flex-row items-center"><Text className="mr-3 text-3xl">📍</Text><View><Label className="font-bold">{displayAreaName(activeArea)}</Label><Label className="text-xs">{activeArea.province || 'ไม่มีข้อมูลจังหวัด'}</Label></View></Card>
                 <View className="mb-2 rounded-2xl border border-sky-100 bg-white p-4">
-                  <Text className="text-xs font-semibold text-slate-500">ผลประเมินจาก Backend</Text>
-                  <View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{activeArea.prediction?.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayProbability(activeArea.prediction?.riskProbabilityPercent)}</Label></View>
-                  <Text className="mt-2 text-xs text-slate-500">{activeArea.prediction?.periodLabel || 'ไม่มีข้อมูลช่วงเวลาพยากรณ์'}</Text>
+                  <Text className="text-xs font-semibold text-slate-500">
+                    {activeArea.prediction ? 'ผลพยากรณ์จากโมเดล' : 'สถานะน้ำท่วมที่บันทึก (ข้อมูลย้อนหลัง)'}
+                  </Text>
+                  {activeArea.prediction
+                    ? <View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{activeArea.prediction.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayProbability(activeArea.prediction.riskProbabilityPercent)}</Label></View>
+                    : <Label className="mt-1 text-2xl font-extrabold">{observedFloodStatus(activeArea)}</Label>}
+                  <Text className="mt-2 text-xs text-slate-500">
+                    {activeArea.prediction?.periodLabel
+                      || `ข้อมูลล่าสุด ${activeArea.observations?.recordedAt || 'ไม่ระบุวันที่'} · ไม่ใช่ผลพยากรณ์`}
+                  </Text>
                 </View>
                 <View className="mb-2 flex-row gap-2">{[
                   ['☔', 'ปริมาณฝน', displayValue(activeArea.observations?.rainfallMm, ' mm')],
                   ['⌁', 'ระดับน้ำ', displayValue(activeArea.observations?.waterLevelM, ' m')],
-                  ['⚠', 'ประวัติน้ำท่วม', displayValue(activeArea.observations?.floodHistory)],
+                  ['⚠', 'เดือนที่พบว่าน้ำท่วม', displayValue(activeArea.observations?.floodHistory, ' เดือน')],
                 ].map(([icon, label, value]) => <View key={label} className="flex-1 rounded-xl border border-sky-100 bg-white p-3"><Text className="text-xl text-blue-500">{icon}</Text><Label className="mt-1 text-xs">{label}</Label><Label className="text-base font-bold">{value}</Label></View>)}</View>
                 <Pressable onPress={() => router.push({ pathname: '/forecast', params: { area: String(activeArea.id) } })} className="mt-3 items-center rounded-full bg-[#1689df] py-3"><Text className="font-bold text-white">ดูผลพยากรณ์</Text></Pressable>
               </>}
@@ -262,7 +294,66 @@ export default function WetzyScreen({ screen }) {
       </ScrollView></View>}
 
       {screen === 'data' && <ScrollView className="flex-1 px-4 pt-3"><Header title="ข้อมูลพื้นที่" back={false}/><Label className="mb-3 text-sm">ผลลัพธ์ที่ได้รับจาก Backend</Label>
-        {listStatus || areas.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 bg-white p-3"><View className="mr-3 h-3 w-3 rounded-full bg-sky-500"/><Label className="flex-1 text-sm">{displayAreaName(area)}</Label><Label className="mr-3 font-bold">{displayProbability(area.prediction?.riskProbabilityPercent)}</Label><Pill value={area.prediction?.riskLevel}/></Pressable>)}
+        {listStatus || areas.map((area) => <Pressable key={area.id} onPress={() => openDetail(area)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 bg-white p-3"><View className="mr-3 h-3 w-3 rounded-full bg-sky-500"/><View className="flex-1"><Label className="text-sm">{displayAreaName(area)}</Label><Text className="mt-1 text-xs text-slate-500">{area.observations?.recordedAt || ''}</Text></View><Pill value={area.prediction?.riskLevel || observedFloodStatus(area)}/></Pressable>)}
+      </ScrollView>}
+
+      {screen === 'profile' && <ScrollView className="flex-1 px-4 pt-3" contentContainerStyle={{ paddingBottom: 16 }}>
+        <Header title="โปรไฟล์" back={false}/>
+        <Card className="mb-3">
+          <Label className="mb-3 font-bold">บัญชีพนักงาน</Label>
+          {authLoading
+            ? <Label className="text-sm">กำลังตรวจสอบสถานะบัญชี...</Label>
+            : user
+              ? <>
+                <View className="mb-3 flex-row items-center">
+                  <View className="mr-3 h-12 w-12 items-center justify-center rounded-full bg-sky-100">
+                    <Text className="text-xl text-[#1689df]">♙</Text>
+                  </View>
+                  <View className="flex-1">
+                    <Label className="font-bold">{user.username}</Label>
+                    <Text className="mt-1 text-sm text-slate-500">{user.email}</Text>
+                  </View>
+                </View>
+                <View className="mb-3 self-start rounded-full bg-sky-50 px-3 py-1">
+                  <Text className="text-xs font-bold text-[#07539d]">
+                    {user.role === 'superadmin' ? 'Superadmin' : 'Admin'}
+                  </Text>
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={handleLogout}
+                  className="min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4"
+                >
+                  <Text className="font-bold text-[#07539d]">ออกจากระบบ</Text>
+                </Pressable>
+                {logoutError ? <Text accessibilityRole="alert" className="mt-2 text-sm text-red-700">{logoutError}</Text> : null}
+              </>
+              : <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push('/staff-login')}
+                className="min-h-12 flex-row items-center justify-center rounded-xl bg-[#1689df] px-4"
+              >
+                <Text className="mr-2 text-lg text-white">◈</Text>
+                <Text className="font-bold text-white">เข้าสู่ระบบพนักงาน</Text>
+              </Pressable>}
+          {!authLoading && sessionError && !user
+            ? <Text accessibilityRole="alert" className="mt-2 text-sm text-red-700">{sessionError}</Text>
+            : null}
+        </Card>
+        <Card className="mb-3">
+          <Label className="mb-2 font-bold">เกี่ยวกับ Wetzy</Label>
+          <Label className="mb-3 text-sm leading-6">
+            ติดตามข้อมูลพื้นที่และความเสี่ยงน้ำท่วมจากแหล่งข้อมูลที่เชื่อมต่อ
+          </Label>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/about')}
+            className="min-h-10 flex-row items-center"
+          >
+            <Label className="flex-1 text-sm font-semibold">ข้อมูลโครงการ</Label>
+            <Label className="text-xl">›</Label>
+          </Pressable>
+        </Card>
       </ScrollView>}
 
       {screen === 'about' && <ScrollView className="flex-1 px-4 pt-3"><Header title="เกี่ยวกับ Wetzy" back={false}/><Card className="mb-3"><View className="my-2 flex-row items-center"><Text className="mr-3 text-5xl text-blue-500">◉</Text><View><Text className="text-2xl font-extrabold text-[#07539d]">Wetzy</Text><Text className="text-xs text-blue-700">Know Before It Flows.</Text></View></View><Label className="text-sm leading-6">แอปแสดงข้อมูลพื้นที่และผลพยากรณ์ที่ได้รับจาก Backend โดยไม่สร้างผลประเมินขึ้นในแอป</Label></Card><Card><Label className="mb-2 font-bold">ข้อมูลโครงการ</Label>{[['ⓘ', 'วัตถุประสงค์', 'ติดตามข้อมูลความเสี่ยงน้ำท่วมจากแหล่งข้อมูลที่เชื่อมต่อ'], ['◉', 'การประเมินความเสี่ยง', 'แสดงผลตามข้อมูลที่ Backend ส่งกลับ'], ['⌖', 'พื้นที่ศึกษา', 'รายชื่อพื้นที่โหลดจาก Backend']].map(([icon, title, description]) => <Pressable key={title} onPress={() => setHelpOpen(helpOpen === title ? '' : title)} className="mb-2 flex-row items-center rounded-xl border border-sky-100 px-3 py-3"><Text className="mr-3 text-blue-500">{icon}</Text><Label className="flex-1 text-sm">{title}</Label><Label>›</Label>{helpOpen === title ? <Label className="basis-full pt-2 text-xs">{description}</Label> : null}</Pressable>)}</Card></ScrollView>}

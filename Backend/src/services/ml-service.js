@@ -57,12 +57,14 @@ async function getMlServiceStatus(config) {
     const payload = await requestMlService('/health', config);
     return {
       reachable: true,
+      datasetAvailable: payload.dataset_available === true,
       modelAvailable: payload.model_available === true,
       status: payload.status || 'unknown',
     };
   } catch (error) {
     return {
       reachable: false,
+      datasetAvailable: false,
       modelAvailable: false,
       error: error.code || 'ML_SERVICE_UNAVAILABLE',
     };
