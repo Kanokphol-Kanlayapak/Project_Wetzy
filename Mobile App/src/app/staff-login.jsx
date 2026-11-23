@@ -10,6 +10,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { ApiError } from '../services/api';
 import { useStaffAuth } from '../contexts/StaffAuthContext';
@@ -23,7 +24,7 @@ export default function StaffLoginRoute() {
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
-    if (!isLoading && user) router.replace('/profile');
+    if (!isLoading && user) router.replace('/admin');
   }, [isLoading, user]);
 
   async function handleLogin() {
@@ -33,7 +34,7 @@ export default function StaffLoginRoute() {
     setErrorMessage('');
     try {
       await login(identifier.trim(), password);
-      router.replace('/profile');
+      router.replace('/admin');
     } catch (error) {
       setErrorMessage(error instanceof ApiError
         ? error.message
@@ -69,9 +70,12 @@ export default function StaffLoginRoute() {
           </Pressable>
 
           <View className="mb-6 items-center">
-            <View className="mb-4 h-16 w-16 items-center justify-center rounded-2xl bg-[#07539d]">
-              <Text className="text-3xl text-white">◈</Text>
-            </View>
+            <Image
+              source={require('../../assets/images/wetzy-logo.png')}
+              contentFit="contain"
+              accessibilityLabel="โลโก้ Wetzy"
+              style={{ width: 96, height: 96, marginBottom: 12 }}
+            />
             <Text className="text-3xl font-extrabold tracking-tight text-[#07539d]">Wetzy</Text>
             <Text className="mt-2 text-lg font-bold text-[#0b3974]">เข้าสู่ระบบพนักงาน</Text>
             <Text className="mt-1 text-center text-sm text-slate-500">

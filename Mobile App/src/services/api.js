@@ -162,3 +162,29 @@ export async function fetchStaffProfile(token) {
 export async function logoutStaff(token) {
   return requestJson('/auth/staff/logout', { method: 'POST', token });
 }
+
+// ---------------------------------------------------------------------------
+// Admin API (requires a staff token; the Backend enforces roles on every route)
+// ---------------------------------------------------------------------------
+async function adminRequest(path, options = {}) {
+  const token = await getStaffToken();
+  if (!token) throw new ApiError('เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่', 'AUTH_REQUIRED', 401);
+  return requestJson(path, { ...options, token });
+}
+
+export const fetchAdminOverview = () => adminRequest('/admin/overview');
+export const fetchAdminLogs = (status) => adminRequest(`/admin/logs?limit=100${status ? `&status=${status}` : ''}`)
+  .then((payload) => payload.logs || []);
+export const fetchDatasetTypes = () => adminRequest('/admin/dataset-types').then((payload) => payload.types || []);
+export const fetchDatasets = () => adminRequest('/admin/datasets').then((payload) => payload.datasets || []);
+export const createDataset = (body) => adminRequest('/admin/datasets', { method: 'POST', body }).then((p) => p.dataset);
+export const uploadDatasetRows = (id, rows) => adminRequest(`/admin/datasets/${encodeURIComponent(id)}/rows`, { method: 'POST', body: { rows } });
+export const completeDataset = (id) => adminRequest(`/admin/datasets/${encodeURIComponent(id)}/complete`, { method: 'POST', body: {} }).then((p) => p.dataset);
+export const abortDataset = (id) => adminRequest(`/admin/datasets/${encodeURIComponent(id)}/abort`, { method: 'POST', body: {} });
+export const fetchDatasetPreview = (id) => adminRequest(`/admin/datasets/${encodeURIComponent(id)}/preview?limit=10`);
+export const deleteDataset = (id) => adminRequest(`/admin/datasets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+
+export const fetchUsers = () => adminRequest('/auth/users').then((payload) => payload.users || []);
+export const setUserStatus = (id, isActive) => adminRequest(`/auth/users/${encodeURIComponent(id)}/status`, { method: 'PATCH', body: { isActive } });
+export const setUserRole = (id, role) => adminRequest(`/auth/users/${encodeURIComponent(id)}/role`, { method: 'PATCH', body: { role } });
+export const createAdminUser = (body) => adminRequest('/auth/staff/users', { method: 'POST', body });

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const User = require('../models/User');
 
 const DATABASE_NAME = 'Wetzy_DB';
-const COLLECTION_NAMES = ['User', 'Flood_predictions', 'Notifications', 'system_logs'];
+const COLLECTION_NAMES = ['User', 'Flood_predictions', 'Notifications', 'system_logs', 'datasets', 'dataset_records'];
 
 async function ensureCollections() {
   const database = mongoose.connection.db;

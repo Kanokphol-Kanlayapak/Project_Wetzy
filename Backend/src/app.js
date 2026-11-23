@@ -4,6 +4,7 @@ const { getMlServiceStatus } = require('./services/ml-service');
 const { createApiRouter } = require('./routes/api');
 const { createAuthRouter } = require('./routes/auth');
 const { createNotificationRouter } = require('./routes/notifications');
+const { createAdminRouter } = require('./routes/admin');
 const { createAuthService } = require('./services/auth-service');
 const mongoose = require('mongoose');
 
@@ -28,7 +29,11 @@ function createApp(config = {}, options = {}) {
 
   app.disable('x-powered-by');
   app.use(cors({ origin: corsOrigin }));
-  app.use(express.json({ limit: '32kb' }));
+  // Dataset row chunks are larger than the default 32kb; the admin router applies its own limit.
+  const defaultJson = express.json({ limit: '32kb' });
+  app.use((request, response, next) => (/^\/api\/admin\/datasets\/[^/]+\/rows$/.test(request.path)
+    ? next()
+    : defaultJson(request, response, next)));
 
   app.get('/health', async (_request, response) => {
     const mlService = await getMlServiceStatus(normalizedConfig);
@@ -49,6 +54,7 @@ function createApp(config = {}, options = {}) {
   app.use('/api', createApiRouter(normalizedConfig));
   app.use('/api/auth', createAuthRouter(normalizedConfig, authService));
   app.use('/api/notifications', createNotificationRouter(normalizedConfig, authService));
+  app.use('/api/admin', createAdminRouter(normalizedConfig, authService, options.datasetService));
 
   app.use((_request, _response, next) => {
     const error = new Error('Route not found');

@@ -39,26 +39,6 @@ function createAuthRouter(config, authService = createAuthService(config)) {
         status: 'success',
       });
 
-      router.post(
-        '/staff/users',
-        authenticateToken,
-        authorizeRoles('superadmin'),
-        async (request, response, next) => {
-          try {
-            const { username, email, password } = request.body || {};
-            const user = await authService.createStaffUser({ username, email, password });
-            return response.status(201).json({ user });
-          } catch (error) {
-            if (error.code === 'STAFF_ACCOUNT_EXISTS' || error.code === 11000) {
-              return response.status(409).json({
-                error: { code: error.code, message: error.message },
-              });
-            }
-            return next(error);
-          }
-        },
-      );
-
       return response.json({
         token,
         expiresAt: authService.getTokenExpiration(token),
@@ -68,6 +48,32 @@ function createAuthRouter(config, authService = createAuthService(config)) {
       return next(error);
     }
   });
+
+  router.post(
+    '/staff/users',
+    authenticateToken,
+    authorizeRoles('superadmin'),
+    async (request, response, next) => {
+      try {
+        const { username, email, password } = request.body || {};
+        const user = await authService.createStaffUser({ username, email, password });
+        await authService.recordAuthLog({
+          username: request.user.username,
+          role: request.user.role,
+          action: `create_admin:${user.username}`,
+          status: 'success',
+        });
+        return response.status(201).json({ user });
+      } catch (error) {
+        if (error.code === 'STAFF_ACCOUNT_EXISTS' || error.code === 11000) {
+          return response.status(409).json({
+            error: { code: error.code, message: error.message },
+          });
+        }
+        return next(error);
+      }
+    },
+  );
 
   router.get('/staff/me', authenticateToken, requireStaff, (request, response) => {
     response.json({ user: authService.sanitizeUser(request.user), expiresAt: request.tokenExpiresAt });
@@ -128,6 +134,7 @@ function createAuthRouter(config, authService = createAuthService(config)) {
         }
 
         const user = await authService.updateUser(request.params.userId, { role });
+        await authService.recordAuthLog({ username: request.user.username, role: request.user.role, action: `set_role:${targetUser.username}->${role}`, status: 'success' });
         return response.json({ message: 'User role updated successfully', user });
       } catch (error) {
         return next(error);
@@ -163,6 +170,7 @@ function createAuthRouter(config, authService = createAuthService(config)) {
         const user = await authService.updateUser(request.params.userId, {
           isActive: request.body.isActive,
         });
+        await authService.recordAuthLog({ username: request.user.username, role: request.user.role, action: `${request.body.isActive ? 'enable' : 'disable'}_user:${targetUser.username}`, status: 'success' });
         return response.json({ message: 'User status updated successfully', user });
       } catch (error) {
         return next(error);

@@ -8,7 +8,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test": "node --test",
-    "check": "node --check server.js && node --check src/app.js && node --check src/config/env.js && node --check src/config/mongo.js && node --check src/routes/api.js && node --check src/routes/auth.js && node --check src/routes/notifications.js && node --check src/controllers/areas.js && node --check src/services/ml-service.js && node --check src/services/auth-service.js && node --check src/middleware/auth.js && node --check src/models/User.js && node --check src/models/NotificationSettings.js && node --check src/models/Notification.js && node --check src/models/SystemLog.js && node --check src/models/FloodPrediction.js && node --check test/auth.test.js"
+    "check": "node --check server.js && node --check src/app.js && node --check src/config/env.js && node --check src/config/mongo.js && node --check src/routes/api.js && node --check src/routes/auth.js && node --check src/routes/notifications.js && node --check src/routes/admin.js && node --check src/services/dataset-service.js && node --check src/config/dataset-schemas.js && node --check src/models/Dataset.js && node --check src/models/DatasetRecord.js && node --check src/controllers/areas.js && node --check src/services/ml-service.js && node --check src/services/auth-service.js && node --check src/middleware/auth.js && node --check src/models/User.js && node --check src/models/NotificationSettings.js && node --check src/models/Notification.js && node --check src/models/SystemLog.js && node --check src/models/FloodPrediction.js && node --check test/auth.test.js && node --check test/admin.test.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -16,6 +16,14 @@
     "dotenv": "^16.6.1",
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.8.0"
-  }
+    "mongoose": "^8.24.10"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {},
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }

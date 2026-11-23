@@ -321,6 +321,13 @@ export default function WetzyScreen({ screen }) {
                 </View>
                 <Pressable
                   accessibilityRole="button"
+                  onPress={() => router.push('/admin')}
+                  className="mb-2 min-h-11 items-center justify-center rounded-xl bg-[#1689df] px-4"
+                >
+                  <Text className="font-bold text-white">เปิดหน้า Admin</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
                   onPress={handleLogout}
                   className="min-h-11 items-center justify-center rounded-xl border border-sky-200 bg-white px-4"
                 >
