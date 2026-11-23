@@ -1,2 +1,3 @@
-import WetzyScreen from '@/components/WetzyScreen';
-export default function RiskMapRoute() { return <WetzyScreen screen="map" />; }
+import { Redirect } from 'expo-router';
+
+export default function RiskMapRoute() { return <Redirect href="/areas" />; }

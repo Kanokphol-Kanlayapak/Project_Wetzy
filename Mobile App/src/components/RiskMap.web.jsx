@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { createOpenStreetMapHtml } from './openstreetmap-html';
-
-function MapOverlay({ hasLocations }) {
-  return <>
-    {!hasLocations ? <View pointerEvents="none" className="absolute bottom-10 left-3 rounded-xl bg-white/95 p-3"><Text className="text-xs text-[#0b3974]">ไม่มีข้อมูลพิกัดพื้นที่</Text></View> : null}
-    <Pressable accessibilityRole="link" onPress={() => window.open('https://www.openstreetmap.org/copyright', '_blank', 'noopener,noreferrer')} className="absolute bottom-2 right-2 rounded bg-white/90 px-1.5 py-1">
-      <Text className="text-[10px] text-[#0b3974]">© OpenStreetMap contributors</Text>
-    </Pressable>
-  </>;
-}
 
 export function RiskMap({ areas, onSelect }) {
   const frame = useRef(null);
@@ -37,13 +28,14 @@ export function RiskMap({ areas, onSelect }) {
   }, [locations, onSelect]);
 
   return <View className="min-h-[350px] flex-1 overflow-hidden rounded-3xl border border-sky-200 bg-white">
-    <iframe
-      ref={frame}
-      title="แผนที่พื้นที่จาก OpenStreetMap"
-      srcDoc={html}
-      className="h-full w-full flex-1 border-0"
-      style={{ minHeight: 350 }}
-    />
-    <MapOverlay hasLocations={locations.length > 0} />
+    {locations.length
+      ? <iframe
+          ref={frame}
+          title="แผนที่พื้นที่จาก OpenStreetMap"
+          srcDoc={html}
+          className="h-full w-full flex-1 border-0"
+          style={{ minHeight: 350 }}
+        />
+      : <View className="flex-1 items-center justify-center px-6"><Text className="text-sm text-slate-500">ยังไม่มีพิกัดพื้นที่ให้แสดงแผนที่</Text></View>}
   </View>;
 }

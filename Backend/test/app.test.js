@@ -19,7 +19,11 @@ before(async () => {
     response.setHeader('content-type', 'application/json');
 
     if (request.url === '/health') {
-      response.end(JSON.stringify({ status: 'not_ready', model_available: false }));
+      response.end(JSON.stringify({
+        status: 'degraded',
+        model_available: false,
+        forecast: { timing_mismatch: true },
+      }));
       return;
     }
 
@@ -57,6 +61,7 @@ test('health reports that the backend is up while the model is unavailable', asy
   assert.equal(body.status, 'degraded');
   assert.equal(body.dependencies.mlService.reachable, true);
   assert.equal(body.dependencies.mlService.modelAvailable, false);
+  assert.equal(body.dependencies.mlService.forecastTimingMismatch, true);
 });
 
 test('area list is forwarded as JSON without adding local data', async () => {

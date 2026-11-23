@@ -23,6 +23,10 @@ const BUTTON_STYLES = {
   ghost: ['bg-transparent', 'text-[#1689df]'],
 };
 
+const pressFeedback = ({ pressed }) => (
+  pressed ? { opacity: 0.82, transform: [{ scale: 0.98 }] } : undefined
+);
+
 export function Button({ label, onPress, variant = 'primary', size = 'md', disabled = false, loading = false, className = '' }) {
   const [box, text] = BUTTON_STYLES[variant];
   const inactive = disabled || loading;
@@ -32,7 +36,8 @@ export function Button({ label, onPress, variant = 'primary', size = 'md', disab
       accessibilityState={{ disabled: inactive }}
       disabled={inactive}
       onPress={onPress}
-      className={`flex-row items-center justify-center rounded-xl ${size === 'sm' ? 'min-h-10 px-3' : 'min-h-11 px-4'} ${box} ${inactive ? 'opacity-50' : ''} ${className}`}
+      style={pressFeedback}
+      className={`flex-row items-center justify-center rounded-xl ${size === 'sm' ? 'min-h-10 px-3' : 'min-h-11 px-4'} ${box} ${inactive ? 'opacity-50' : 'hover:opacity-90'} ${className}`}
     >
       {loading ? <ActivityIndicator color={variant === 'primary' || variant === 'danger' ? 'white' : '#1689df'} className="mr-2" /> : null}
       <Text className={`font-bold ${size === 'sm' ? 'text-sm' : ''} ${text}`}>{label}</Text>

@@ -12,7 +12,7 @@ function createApp(config = {}, options = {}) {
   const normalizedConfig = {
     corsOrigins: Array.isArray(config.corsOrigins) ? config.corsOrigins : ['*'],
     mlServiceUrl: (config.mlServiceUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
-    mlServiceTimeoutMs: Number(config.mlServiceTimeoutMs || 5000),
+    mlServiceTimeoutMs: Number(config.mlServiceTimeoutMs || 15000),
     port: Number(config.port || 3000),
     mongoUri: (config.mongoUri || '').trim(),
     jwtSecret: config.jwtSecret || '',
@@ -42,7 +42,9 @@ function createApp(config = {}, options = {}) {
       database: mongoose.connection.readyState === 1 ? mongoose.connection.name : null,
     };
     response.json({
-      status: mongo.connected && mlService.reachable && mlService.modelAvailable ? 'ok' : 'degraded',
+      status: mongo.connected && mlService.reachable && mlService.modelAvailable && mlService.status === 'ready'
+        ? 'ok'
+        : 'degraded',
       service: 'wetzy-backend',
       dependencies: { mongo, mlService },
     });

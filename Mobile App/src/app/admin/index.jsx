@@ -44,9 +44,23 @@ export default function AdminDashboard() {
             <Card style={compact ? { width: halfWidth } : undefined} className={compact ? 'mb-3' : 'min-w-[280px] flex-1'}>
               <Text className="mb-1 font-extrabold text-[#0b3974]">สถานะบริการ</Text>
               <StatusRow label="MongoDB" ok detail="Wetzy_DB" />
-              <StatusRow label="ML Service" ok={data.mlService.reachable} detail={data.mlService.reachable ? data.mlService.status : data.mlService.error} />
+              <StatusRow
+                label="ML Service"
+                ok={data.mlService.reachable && data.mlService.status === 'ready'}
+                detail={!data.mlService.reachable
+                  ? data.mlService.error
+                  : data.mlService.forecastTimingMismatch
+                    ? 'วันของข้อมูล GFS ไม่ตรงกับวันเป้าหมาย'
+                    : data.mlService.status}
+              />
               <StatusRow label="ชุดข้อมูลของ ML" ok={data.mlService.datasetAvailable} />
-              <StatusRow label="โมเดลพยากรณ์" ok={data.mlService.modelAvailable} detail={data.mlService.modelAvailable ? '' : 'ยังไม่มีไฟล์โมเดล'} />
+              <StatusRow
+                label="โมเดลพยากรณ์"
+                ok={data.mlService.modelAvailable}
+                detail={data.mlService.modelAvailable
+                  ? data.mlService.forecastTimingMismatch ? 'ตรวจสอบช่วงเวลา GFS ก่อนใช้ผล' : ''
+                  : 'โมเดลหรือข้อมูล GFS ยังไม่พร้อม'}
+              />
             </Card>
             <Card style={compact ? { width: halfWidth } : undefined} className={compact ? 'mb-3 justify-between' : 'min-w-[280px] flex-1 justify-between'}>
               <View>
