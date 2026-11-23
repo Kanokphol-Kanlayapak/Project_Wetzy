@@ -60,12 +60,14 @@ async function getMlServiceStatus(config) {
       datasetAvailable: payload.dataset_available === true,
       modelAvailable: payload.model_available === true,
       status: payload.status || 'unknown',
+      forecastTimingMismatch: payload.forecast?.timing_mismatch === true,
     };
   } catch (error) {
     return {
       reachable: false,
       datasetAvailable: false,
       modelAvailable: false,
+      forecastTimingMismatch: false,
       error: error.code || 'ML_SERVICE_UNAVAILABLE',
     };
   }

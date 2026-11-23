@@ -1,0 +1,20 @@
+จากโค้ด โมเดลรับ 33 ฟีเจอร์ ต่อเขตต่อวัน: ชื่อเขต 1 ค่า และตัวเลข 32 ค่า รายชื่อฟีเจอร์จริงอยู่ใน Modeltest.ipynb
+
+ฟีเจอร์พยากรณ์อากาศ GFS — 10 ค่า
+
+rain_next_24h_mm, rain_next_48h_mm, rain_next_72h_mm
+up_rain_next_24h_mm, up_rain_next_48h_mm, up_rain_next_72h_mm
+temperature_2m, relative_humidity_2m, wind_u_10m, wind_v_10m
+ฟีเจอร์ภูมิประเทศ/การใช้ที่ดิน — 18 ค่า
+
+elevation_m, slope_deg, tpi_2km_m, bowl_frac, hand_m
+frac_hand_lt5, frac_hand_lt10, twi, clay_pct, sand_pct
+lc_tree, lc_crop, impervious_built_frac, lc_water, lc_wetland, lc_mangrove
+river_km_per_km2, river_max_cms
+อีก 5 ค่า
+
+district — ชื่ออำเภอ
+month_sin, month_cos, doy_sin, doy_cos — คำนวณจากวันที่ ไม่ต้องดึงจาก Earth Engine
+ดังนั้น Earth Engine เหมาะกับการดึงหรือคำนวณ ข้อมูลภูมิประเทศและการใช้ที่ดิน ตามขอบเขตอำเภอ ส่วนข้อมูล GFS ต้องได้ค่าพยากรณ์ให้ตรงช่วง 24/48/72 ชั่วโมงและนิยามเดียวกับข้อมูลที่ใช้ฝึกโมเดล จะดึงผ่าน Earth Engine หรือแหล่ง GFS อื่นก็ได้ ส่วน river_max_cms เป็นฟีเจอร์ที่โมเดลต้องใช้ แต่ควรตรวจแหล่งข้อมูลเดิมก่อนว่าได้มาจากไหน เพราะไม่ใช่ค่าภูมิประเทศทั่วไป
+
+สำคัญ: โมเดลต้องได้ค่าตามชื่อฟีเจอร์และวิธีรวมข้อมูลเชิงพื้นที่แบบเดียวกับตอนฝึก และ ไม่ต้องส่ง flood_obs หรือผลน้ำท่วมจริงเป็น input—ค่านั้นเป็น label สำหรับฝึก/ประเมิน ไม่ใช่ข้อมูลที่จะรู้ล่วงหน้าตอนทำนายครับ

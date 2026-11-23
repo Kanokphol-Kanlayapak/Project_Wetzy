@@ -55,8 +55,11 @@ async function performRequestJson(path, options) {
 
   if (!response.ok) {
     const error = payload?.error || payload?.detail || {};
+    const message = error.code === 'AREA_DATASET_UNAVAILABLE'
+      ? 'ยังโหลดข้อมูลพื้นที่ไม่ได้ กรุณาตรวจสอบชุดข้อมูลของระบบแล้วลองอีกครั้ง'
+      : typeof error === 'string' ? error : error.message || 'ไม่สามารถโหลดข้อมูลได้';
     throw new ApiError(
-      typeof error === 'string' ? error : error.message || 'ไม่สามารถโหลดข้อมูลได้',
+      message,
       error.code || 'API_REQUEST_FAILED',
       response.status,
     );
@@ -96,7 +99,10 @@ export async function fetchAreas() {
     throw new ApiError('รูปแบบรายการพื้นที่จาก Backend ไม่ถูกต้อง', 'INVALID_API_RESPONSE');
   }
 
-  return payload.areas;
+  return {
+    areas: payload.areas,
+    forecastStatus: payload.forecast_status || null,
+  };
 }
 
 export async function fetchArea(id) {

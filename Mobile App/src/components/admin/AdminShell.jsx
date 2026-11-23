@@ -13,10 +13,12 @@ const NAV = [
   { href: '/admin/logs', icon: '☰', label: 'บันทึกระบบ' },
 ];
 export const WIDE_BREAKPOINT = 900;
-// true = always use the phone layout (centered 860px column on big screens).
-// Set to false to bring back the desktop sidebar layout on wide screens.
-export const FORCE_MOBILE = true;
+export const FORCE_MOBILE = false;
 export const MOBILE_MAX_WIDTH = 860;
+
+const pressFeedback = ({ pressed }) => (
+  pressed ? { opacity: 0.82, transform: [{ scale: 0.98 }] } : undefined
+);
 
 // true when the centered column is wide enough (>= 640px) to put cards side by side
 export function useIsRoomy() {
@@ -77,7 +79,8 @@ export function AdminShell({ children }) {
                     accessibilityRole="link"
                     accessibilityState={{ selected: active }}
                     onPress={() => router.replace(item.href)}
-                    className={`mb-1 min-h-11 flex-row items-center rounded-xl px-3 ${active ? 'bg-[#1689df]' : 'bg-transparent'}`}
+                    style={pressFeedback}
+                    className={`mb-1 min-h-11 flex-row items-center rounded-xl px-3 ${active ? 'bg-[#1689df]' : 'bg-transparent hover:bg-sky-50'}`}
                   >
                     <Text className={`mr-3 text-lg ${active ? 'text-white' : 'text-[#1689df]'}`}>{item.icon}</Text>
                     <Text className={`font-semibold ${active ? 'text-white' : 'text-[#0b3974]'}`}>{item.label}</Text>
@@ -120,6 +123,7 @@ export function AdminShell({ children }) {
           accessibilityRole="button"
           accessibilityLabel="เมนูบัญชี"
           onPress={() => setMenuOpen(true)}
+          style={pressFeedback}
           className="h-11 w-11 items-center justify-center rounded-full bg-sky-100"
         >
           <Text className="text-base font-bold text-[#07539d]">{(user?.username || '?').slice(0, 1).toUpperCase()}</Text>
@@ -145,7 +149,8 @@ export function AdminShell({ children }) {
               accessibilityRole="tab"
               accessibilityState={{ selected: active }}
               onPress={() => router.replace(item.href)}
-              className="min-h-14 flex-1 items-center justify-center pb-1"
+              style={pressFeedback}
+              className="min-h-14 flex-1 items-center justify-center pb-1 hover:bg-sky-50"
             >
               <View className={`h-7 w-14 items-center justify-center rounded-full ${active ? 'bg-sky-100' : 'bg-transparent'}`}>
                 <Text className={`text-lg ${active ? 'text-[#1689df]' : 'text-slate-400'}`}>{item.icon}</Text>
