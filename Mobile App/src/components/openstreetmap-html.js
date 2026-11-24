@@ -5,6 +5,11 @@ export function createOpenStreetMapHtml(areas) {
     name: area.short || area.name || area.district || '',
     riskLevel: area.prediction?.riskLevel || '',
     probability: area.prediction?.riskProbabilityPercent ?? null,
+    probabilityStatus: area.prediction?.probabilityStatus || 'unvalidated_inputs',
+    dataQualityWarning: [
+      area.prediction?.probabilityNote,
+      area.prediction?.dataQualityWarning,
+    ].filter(Boolean).join(' '),
     periodLabel: area.prediction?.periodLabel || '',
   }));
   const serializedAreas = JSON.stringify(mapAreas).replace(/</g, '\\u003c');
@@ -14,7 +19,7 @@ export function createOpenStreetMapHtml(areas) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
   <style>
     html,body,#map{height:100%;margin:0}
     body{font-family:system-ui,sans-serif}
@@ -28,13 +33,18 @@ export function createOpenStreetMapHtml(areas) {
     .area-popup-period{color:#64748b;font-size:11px;margin-top:3px}
     .area-popup button{background:#1689df;border:0;border-radius:6px;color:white;cursor:pointer;font-size:12px;margin-top:8px;padding:6px 10px}
   </style>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
-    L.tileLayer('https://tile.openstreetmap.de/{z}/{x}/{y}.png', {
+    const mapContainer = document.getElementById('map');
+    if (typeof L === 'undefined') {
+      mapContainer.textContent = 'โหลดแผนที่ไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต';
+      mapContainer.style.cssText = 'align-items:center;display:flex;justify-content:center;padding:24px;text-align:center;color:#64748b';
+    } else {
+    const map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
     }).addTo(map);
@@ -55,9 +65,17 @@ export function createOpenStreetMapHtml(areas) {
       risk.className = 'area-popup-risk';
       risk.style.color = color;
       risk.textContent = area.riskLevel
-        ? 'ความเสี่ยง ' + area.riskLevel + (typeof area.probability === 'number' ? ' · ' + area.probability + '%' : '')
+        ? (area.probabilityStatus === 'validated'
+          ? 'ความเสี่ยง ' + area.riskLevel + (typeof area.probability === 'number' ? ' · ' + area.probability.toFixed(1) + '%' : '')
+          : 'คะแนนโมเดล ' + (typeof area.probability === 'number' ? area.probability.toFixed(1) + '%' : 'ไม่มีข้อมูล') + ' · ' + area.riskLevel)
         : 'ไม่มีข้อมูลความเสี่ยง';
       popup.append(name, risk);
+      if (area.dataQualityWarning) {
+        const warning = document.createElement('div');
+        warning.className = 'area-popup-period';
+        warning.textContent = area.dataQualityWarning;
+        popup.append(warning);
+      }
       if (area.periodLabel) {
         const period = document.createElement('div');
         period.className = 'area-popup-period';
@@ -76,78 +94,16 @@ export function createOpenStreetMapHtml(areas) {
       return popup;
     }
 
-    function cross(origin, first, second) {
-      return (first[0] - origin[0]) * (second[1] - origin[1])
-        - (first[1] - origin[1]) * (second[0] - origin[0]);
-    }
-
-    function convexHull(pointsToBound) {
-      const sorted = [...pointsToBound].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-      if (sorted.length <= 2) return sorted;
-      const lower = [];
-      const upper = [];
-      sorted.forEach((point) => {
-        while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], point) <= 0) lower.pop();
-        lower.push(point);
-      });
-      [...sorted].reverse().forEach((point) => {
-        while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], point) <= 0) upper.pop();
-        upper.push(point);
-      });
-      return lower.slice(0, -1).concat(upper.slice(0, -1));
-    }
-
-    function isInsideHull(point, hull) {
-      let inside = false;
-      for (let current = 0, previous = hull.length - 1; current < hull.length; previous = current++) {
-        const [currentX, currentY] = hull[current];
-        const [previousX, previousY] = hull[previous];
-        const crosses = (currentY > point[1]) !== (previousY > point[1])
-          && point[0] < ((previousX - currentX) * (point[1] - currentY)) / (previousY - currentY) + currentX;
-        if (crosses) inside = !inside;
-      }
-      return inside;
-    }
-
-    function findNearestArea(latitude, longitude) {
-      const latitudeScale = 111320;
-      const longitudeScale = latitudeScale * Math.cos(latitude * Math.PI / 180);
-      return areas.reduce((nearest, area, index) => {
-        const latitudeDistance = (area.latitude - latitude) * latitudeScale;
-        const longitudeDistance = (area.longitude - longitude) * longitudeScale;
-        const distance = latitudeDistance * latitudeDistance + longitudeDistance * longitudeDistance;
-        return distance < nearest.distance ? { index, distance } : nearest;
-      }, { index: 0, distance: Number.POSITIVE_INFINITY }).index;
-    }
-
-    if (points.length >= 3) {
-      const hull = convexHull(areas.map((area) => [area.longitude, area.latitude]));
-      const minimumLatitude = Math.min(...areas.map((area) => area.latitude));
-      const maximumLatitude = Math.max(...areas.map((area) => area.latitude));
-      const minimumLongitude = Math.min(...areas.map((area) => area.longitude));
-      const maximumLongitude = Math.max(...areas.map((area) => area.longitude));
-      const cellSizeMeters = 5000;
-      const latitudeStep = cellSizeMeters / 111320;
-      const longitudeStep = cellSizeMeters / (111320 * Math.cos(((minimumLatitude + maximumLatitude) / 2) * Math.PI / 180));
-      const firstLatitude = Math.floor(minimumLatitude / latitudeStep) * latitudeStep;
-      const firstLongitude = Math.floor(minimumLongitude / longitudeStep) * longitudeStep;
-
-      for (let south = firstLatitude; south < maximumLatitude; south += latitudeStep) {
-        for (let west = firstLongitude; west < maximumLongitude; west += longitudeStep) {
-          const centerLatitude = south + latitudeStep / 2;
-          const centerLongitude = west + longitudeStep / 2;
-          if (!isInsideHull([centerLongitude, centerLatitude], hull)) continue;
-
-          const areaIndex = findNearestArea(centerLatitude, centerLongitude);
-          const area = areas[areaIndex];
-          const color = riskColors[area.riskLevel] || '#64748b';
-          L.rectangle(
-            [[south, west], [south + latitudeStep, west + longitudeStep]],
-            { color: '#ffffff', weight: 0.5, fillColor: color, fillOpacity: 0.48 },
-          ).bindPopup(createAreaPopup(area, areaIndex, color), { maxWidth: 250 }).addTo(map);
-        }
-      }
-    }
+    areas.forEach((area, index) => {
+      const color = riskColors[area.riskLevel] || '#64748b';
+      L.circleMarker([area.latitude, area.longitude], {
+        radius: 9,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: color,
+        fillOpacity: 0.9,
+      }).bindPopup(createAreaPopup(area, index, color), { maxWidth: 250 }).addTo(map);
+    });
 
     const legend = L.control({ position: 'bottomleft' });
     legend.onAdd = () => {
@@ -155,14 +111,20 @@ export function createOpenStreetMapHtml(areas) {
       const title = L.DomUtil.create('div', 'area-legend-title', container);
       title.textContent = 'ระดับความเสี่ยง';
       const note = L.DomUtil.create('div', 'area-legend-note', container);
-      note.textContent = 'กริดประมาณ 5 กม. จากจุดอำเภอ';
-      [
-        ['ต่ำ', riskColors['ต่ำ']],
-        ['ปานกลาง', riskColors['ปานกลาง']],
-        ['สูง', riskColors['สูง']],
-        ['สูงมาก', riskColors['สูงมาก']],
+      const hasUnvalidatedPredictions = areas.some((area) => (
+        area.riskLevel && area.probabilityStatus !== 'validated'
+      ));
+      note.textContent = hasUnvalidatedPredictions
+        ? 'สีแสดงคะแนนโมเดลที่ยังไม่ยืนยัน · จุดคือพิกัดอำเภอจาก GEE'
+        : 'จุดแสดงพิกัดอำเภอจาก Google Earth Engine';
+      const legendRows = [
+        ['ต่ำ 0-25%', riskColors['ต่ำ']],
+        ['ปานกลาง 25-50%', riskColors['ปานกลาง']],
+        ['สูง 50-75%', riskColors['สูง']],
+        ['สูงมาก 75-100%', riskColors['สูงมาก']],
         ['ไม่มีข้อมูล', '#64748b']
-      ].forEach(([label, color]) => {
+      ];
+      legendRows.forEach(([label, color]) => {
         const row = L.DomUtil.create('div', 'area-legend-row', container);
         const dot = L.DomUtil.create('span', 'area-legend-dot', row);
         dot.style.backgroundColor = color;
@@ -173,13 +135,11 @@ export function createOpenStreetMapHtml(areas) {
       return container;
     };
     legend.addTo(map);
-    if (points.length) {
-      const locationBounds = L.latLngBounds(points);
-      const mapBounds = locationBounds.pad(0.12);
-      map.fitBounds(locationBounds, { padding: [20, 20], maxZoom: 12 });
-      map.setMaxBounds(mapBounds);
-      map.setMinZoom(map.getBoundsZoom(mapBounds, true));
-      map.options.maxBoundsViscosity = 1;
+    if (points.length === 1) {
+      map.setView(points[0], 9);
+    } else if (points.length > 1) {
+      map.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 10 });
+    }
     }
   </script>
 </body>

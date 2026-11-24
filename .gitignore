@@ -1,0 +1,17 @@
+# ML datasets stay local; keep notebooks and source code tracked
+Machine Learning/raw_data/
+Machine Learning/raw_dataset/
+Machine Learning/clean_data/*.csv
+Machine Learning/clean_data_set/
+Machine Learning/clean_dataset/
+Machine Learning/merge_dataset/*.csv
+Backend/ml_service/all_clean_data_merged.csv
+
+# Python cache
+**/__pycache__/
+*.pyc
+
+# Environment files
+.env
+.env.*
+!.env.example

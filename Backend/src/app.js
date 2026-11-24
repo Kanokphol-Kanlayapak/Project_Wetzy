@@ -12,7 +12,7 @@ function createApp(config = {}, options = {}) {
   const normalizedConfig = {
     corsOrigins: Array.isArray(config.corsOrigins) ? config.corsOrigins : ['*'],
     mlServiceUrl: (config.mlServiceUrl || 'http://127.0.0.1:8000').replace(/\/+$/, ''),
-    mlServiceTimeoutMs: Number(config.mlServiceTimeoutMs || 15000),
+    mlServiceTimeoutMs: Number(config.mlServiceTimeoutMs || 120000),
     port: Number(config.port || 3000),
     mongoUri: (config.mongoUri || '').trim(),
     jwtSecret: config.jwtSecret || '',

@@ -1,9 +1,9 @@
 const { requestMlService } = require('../services/ml-service');
 
 function createAreasController(config) {
-  async function forward(path, response, next) {
+  async function forward(path, response, next, options) {
     try {
-      response.json(await requestMlService(path, config));
+      response.json(await requestMlService(path, config, options));
     } catch (error) {
       next(error);
     }
@@ -34,6 +34,18 @@ function createAreasController(config) {
       response,
       next,
     ),
+    predict: (request, response, next) => {
+      if (!request.body || typeof request.body !== 'object' || Array.isArray(request.body)) {
+        return response.status(400).json({
+          error: {
+            code: 'INVALID_PREDICTION_INPUT',
+            message: 'Prediction input must be a JSON object',
+          },
+        });
+      }
+
+      return forward('/predict', response, next, { method: 'POST', body: request.body });
+    },
   };
 }
 

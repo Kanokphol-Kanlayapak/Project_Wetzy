@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL?.replace(/\/+$/, '');
 const API_TIMEOUT_MS = 15000;
+const AREA_DATA_TIMEOUT_MS = 150000;
 const STAFF_TOKEN_KEY = 'wetzy.staff.token';
 const inFlightGetRequests = new Map();
 
@@ -24,7 +25,10 @@ async function performRequestJson(path, options) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  const timeout = setTimeout(
+    () => controller.abort(),
+    options.timeoutMs || API_TIMEOUT_MS,
+  );
   let response;
   try {
     const headers = { Accept: 'application/json' };
@@ -88,7 +92,7 @@ function requestJson(path, options = {}) {
 }
 
 export async function fetchAreas() {
-  const payload = await requestJson('/areas');
+  const payload = await requestJson('/areas', { timeoutMs: AREA_DATA_TIMEOUT_MS });
   if (!Array.isArray(payload.areas) || payload.areas.some((area) => (
     !area
     || !['string', 'number'].includes(typeof area.id)
@@ -106,7 +110,9 @@ export async function fetchAreas() {
 }
 
 export async function fetchArea(id) {
-  const payload = await requestJson(`/areas/${encodeURIComponent(id)}`);
+  const payload = await requestJson(`/areas/${encodeURIComponent(id)}`, {
+    timeoutMs: AREA_DATA_TIMEOUT_MS,
+  });
   if (!payload.area || typeof payload.area !== 'object' || Array.isArray(payload.area)) {
     throw new ApiError('รูปแบบรายละเอียดพื้นที่จาก Backend ไม่ถูกต้อง', 'INVALID_API_RESPONSE');
   }
@@ -115,7 +121,9 @@ export async function fetchArea(id) {
 }
 
 export async function fetchForecast(id) {
-  const payload = await requestJson(`/areas/${encodeURIComponent(id)}/forecast`);
+  const payload = await requestJson(`/areas/${encodeURIComponent(id)}/forecast`, {
+    timeoutMs: AREA_DATA_TIMEOUT_MS,
+  });
   if (!payload.forecast || typeof payload.forecast !== 'object' || Array.isArray(payload.forecast)) {
     throw new ApiError('รูปแบบผลพยากรณ์จาก Backend ไม่ถูกต้อง', 'INVALID_API_RESPONSE');
   }

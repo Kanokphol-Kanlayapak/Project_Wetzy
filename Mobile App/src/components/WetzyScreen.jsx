@@ -24,7 +24,7 @@ function Header({ title, back = true, right, onRight }) {
   </View>;
 }
 function BottomTabs({ active }) {
-  const tabs = [['/', '⌂', 'หน้าหลัก'], ['/areas', '◧', 'พื้นที่'], ['/data', '◉', 'ข้อมูล'], ['/profile', '♙', 'โปรไฟล์']];
+  const tabs = [['/', '⌂', 'หน้าหลัก'], ['/areas', '◧', 'พื้นที่'], /* ['/data', '◉', 'ข้อมูล'], */ ['/profile', '♙', 'โปรไฟล์']];
   return <View className="flex-row border-t border-sky-100 bg-white px-1 pt-2">{tabs.map(([route, icon, title]) => {
     const selected = active === route;
     return <Pressable key={route} onPress={() => router.replace(route)} accessibilityRole="tab" accessibilityState={{ selected }} className="min-h-12 flex-1 items-center py-1">
@@ -46,11 +46,28 @@ function displayAreaName(area) {
   return area?.short || area?.name || area?.district || 'ไม่มีข้อมูลชื่อพื้นที่';
 }
 function displayProbability(value) {
-  return typeof value === 'number' && Number.isFinite(value) ? `${value}%` : 'ไม่มีข้อมูล';
+  return typeof value === 'number' && Number.isFinite(value) ? `${value.toFixed(1)}%` : 'ไม่มีข้อมูล';
+}
+function displayPredictionProbability(prediction) {
+  return displayProbability(prediction?.riskProbabilityPercent);
 }
 function displayValue(value, unit = '') {
   if (value === null || value === undefined || value === '') return 'ไม่มีข้อมูล';
   return `${value}${unit}`;
+}
+function PredictionWarnings({ prediction, className = '' }) {
+  const messages = [
+    prediction?.probabilityNote,
+    prediction?.dataQualityWarning,
+    prediction?.warning,
+  ].filter(Boolean);
+  return messages.map((message, index) => <Card
+    key={`${index}-${message}`}
+    className={`mb-2 border-amber-200 bg-amber-50 ${className}`}
+  >
+    <Label className="font-bold text-amber-800">{index === 0 ? 'ข้อควรทราบ' : 'ข้อจำกัดของโมเดล'}</Label>
+    <Label className="mt-1 text-xs leading-5 text-amber-800">{message}</Label>
+  </Card>);
 }
 function observedFloodStatus(area) {
   const observation = area?.observations;
@@ -134,9 +151,15 @@ export default function WetzyScreen({ screen }) {
     displayAreaName(area).includes(query) || String(area.district || '').includes(query)
   )), [areas, query]);
   const rankedAreas = useMemo(() => areas
-    .filter((area) => typeof area.prediction?.riskProbabilityPercent === 'number'
-      && Number.isFinite(area.prediction.riskProbabilityPercent))
-    .sort((a, b) => b.prediction.riskProbabilityPercent - a.prediction.riskProbabilityPercent), [areas]);
+    .filter((area) => area.prediction)
+    .sort((a, b) => {
+      const aProbability = a.prediction.riskProbabilityPercent;
+      const bProbability = b.prediction.riskProbabilityPercent;
+      if (Number.isFinite(aProbability) && Number.isFinite(bProbability)) {
+        return bProbability - aProbability;
+      }
+      return Number(b.prediction.predictedClass || 0) - Number(a.prediction.predictedClass || 0);
+    }), [areas]);
   const provinces = useMemo(() => [...new Set(areas.map((area) => area.province).filter(Boolean))], [areas]);
 
   const openDetail = useCallback((area) => {
@@ -190,16 +213,20 @@ export default function WetzyScreen({ screen }) {
           </View>
         </View>
         {listStatus || <>
-          {rankedAreas[0]?.prediction?.warning ? <Card className="mb-3 border-amber-200 bg-amber-50"><Label className="font-bold text-amber-800">ข้อควรทราบ</Label><Label className="mt-1 text-xs leading-5 text-amber-800">{rankedAreas[0].prediction.warning}</Label></Card> : null}
+          <PredictionWarnings prediction={rankedAreas[0]?.prediction} />
           {rankedAreas.length > 0 ? <Pressable onPress={() => openDetail(rankedAreas[0])} accessibilityRole="button" className="mb-3 rounded-3xl bg-[#07539d] p-5">
             <View className="mb-3 flex-row items-center justify-between">
-              <Text className="text-sm font-semibold text-sky-100">พื้นที่ที่มีผลพยากรณ์</Text>
+              <Text className="text-sm font-semibold text-sky-100">
+                {rankedAreas[0].prediction?.probabilityStatus === 'validated' ? 'พื้นที่ที่มีผลพยากรณ์' : 'คะแนนจากโมเดล · ยังไม่ยืนยัน'}
+              </Text>
               <Pill value={rankedAreas[0].prediction?.riskLevel} />
             </View>
             <Text className="text-xl font-bold text-white">{displayAreaName(rankedAreas[0])}</Text>
             <View className="mt-4 flex-row items-end">
-              <Text className="text-5xl font-extrabold text-white">{displayProbability(rankedAreas[0].prediction?.riskProbabilityPercent)}</Text>
-              <Text className="mb-2 ml-auto text-sm font-semibold text-sky-100">โอกาสเกิดน้ำท่วม</Text>
+              <Text className="text-2xl font-extrabold text-white">{displayPredictionProbability(rankedAreas[0].prediction)}</Text>
+              <Text className="mb-2 ml-auto text-sm font-semibold text-sky-100">
+                {rankedAreas[0].prediction?.probabilityStatus === 'validated' ? 'โอกาสเกิดน้ำท่วม' : 'คะแนนโมเดล'}
+              </Text>
             </View>
             <Text className="mt-3 text-xs text-sky-100">{rankedAreas[0].prediction?.periodLabel || 'ช่วงเวลาพยากรณ์ไม่ได้ระบุ'}</Text>
           </Pressable> : <StatusMessage
@@ -239,7 +266,7 @@ export default function WetzyScreen({ screen }) {
               <Label className="text-sm font-semibold">{displayAreaName(area)}</Label>
               <Text className="mt-1 text-xs text-slate-500">
                 {area.prediction
-                  ? displayProbability(area.prediction.riskProbabilityPercent)
+                  ? displayPredictionProbability(area.prediction)
                   : `ข้อมูลล่าสุด ${area.observations?.recordedAt || 'ไม่ระบุวันที่'}`}
               </Text>
             </View>
@@ -284,10 +311,14 @@ export default function WetzyScreen({ screen }) {
                 <Card className="mb-2 flex-row items-center"><Text className="mr-3 text-3xl">📍</Text><View><Label className="font-bold">{displayAreaName(activeArea)}</Label><Label className="text-xs">{activeArea.province || 'ไม่มีข้อมูลจังหวัด'}</Label></View></Card>
                 <View className="mb-2 rounded-2xl border border-sky-100 bg-white p-4">
                   <Text className="text-xs font-semibold text-slate-500">
-                    {activeArea.prediction ? 'ผลพยากรณ์จากโมเดล' : 'สถานะน้ำท่วมที่บันทึก (ข้อมูลย้อนหลัง)'}
+                    {activeArea.prediction
+                      ? activeArea.prediction.probabilityStatus === 'validated'
+                        ? 'ผลพยากรณ์จากโมเดล'
+                        : 'คะแนนจากโมเดล · ยังไม่ยืนยัน'
+                      : 'สถานะน้ำท่วมที่บันทึก (ข้อมูลย้อนหลัง)'}
                   </Text>
                   {activeArea.prediction
-                    ? <View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{activeArea.prediction.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayProbability(activeArea.prediction.riskProbabilityPercent)}</Label></View>
+                    ? <View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{activeArea.prediction.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayPredictionProbability(activeArea.prediction)}</Label></View>
                     : <Label className="mt-1 text-2xl font-extrabold">{observedFloodStatus(activeArea)}</Label>}
                   <Text className="mt-2 text-xs text-slate-500">
                     {activeArea.prediction?.periodLabel
@@ -299,8 +330,8 @@ export default function WetzyScreen({ screen }) {
                   ['⌁', 'ระดับน้ำ', displayValue(activeArea.observations?.waterLevelM, ' m')],
                   ['⚠', 'เดือนที่พบว่าน้ำท่วม', displayValue(activeArea.observations?.floodHistory, ' เดือน')],
                 ].map(([icon, label, value]) => <View key={label} className="flex-1 rounded-xl border border-sky-100 bg-white p-3"><Text className="text-xl text-blue-500">{icon}</Text><Label className="mt-1 text-xs">{label}</Label><Label className="text-base font-bold">{value}</Label></View>)}</View>
-                {activeArea.prediction?.warning ? <Card className="mb-2 border-amber-200 bg-amber-50"><Label className="font-bold text-amber-800">ข้อควรทราบ</Label><Label className="mt-1 text-xs leading-5 text-amber-800">{activeArea.prediction.warning}</Label></Card> : null}
-                <Pressable onPress={() => router.push({ pathname: '/forecast', params: { area: String(activeArea.id) } })} className="mt-3 items-center rounded-full bg-[#1689df] py-3"><Text className="font-bold text-white">ดูผลพยากรณ์</Text></Pressable>
+                <PredictionWarnings prediction={activeArea.prediction} />
+                {/* <Pressable onPress={() => router.push({ pathname: '/forecast', params: { area: String(activeArea.id) } })} className="mt-3 items-center rounded-full bg-[#1689df] py-3"><Text className="font-bold text-white">ดูผลพยากรณ์</Text></Pressable> */}
               </>}
       </ScrollView></View>}
 
@@ -313,9 +344,9 @@ export default function WetzyScreen({ screen }) {
               ? <StatusMessage title="ไม่มีข้อมูลพยากรณ์" message="ยังไม่มีผลพยากรณ์จาก Backend" />
               : <>
                 <Card className="mb-3 flex-row items-center"><Text className="mr-3 text-3xl">📍</Text><View><Label className="font-bold">{displayAreaName(activeArea)}</Label><Label className="text-xs">{activeArea.province || 'ไม่มีข้อมูลจังหวัด'}</Label></View></Card>
-                <View className="mb-3 rounded-2xl border border-sky-100 bg-white p-4"><Text className="text-xs font-semibold text-slate-500">ผลจากแบบจำลอง</Text><View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{currentForecast.forecast.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayProbability(currentForecast.forecast.riskProbabilityPercent)}</Label></View><Text className="mt-2 text-xs text-slate-500">{currentForecast.forecast.periodLabel || 'ไม่มีข้อมูลช่วงเวลาพยากรณ์'}</Text></View>
+                <View className="mb-3 rounded-2xl border border-sky-100 bg-white p-4"><Text className="text-xs font-semibold text-slate-500">{currentForecast.forecast.probabilityStatus === 'validated' ? 'ผลจากแบบจำลอง' : 'คะแนนจากโมเดล · ยังไม่ยืนยัน'}</Text><View className="mt-1 flex-row items-center justify-between"><Label className="text-2xl font-extrabold">{currentForecast.forecast.riskLevel || 'ไม่มีข้อมูล'}</Label><Label className="text-xl font-extrabold">{displayPredictionProbability(currentForecast.forecast)}</Label></View><Text className="mt-2 text-xs text-slate-500">{currentForecast.forecast.periodLabel || 'ไม่มีข้อมูลช่วงเวลาพยากรณ์'}</Text></View>
                 <Card className="bg-sky-50"><Label className="font-bold">ข้อมูลเพิ่มเติม</Label><Label className="mt-1 text-xs leading-5">{currentForecast.forecast.advice || 'ผลจากแบบจำลองไม่ใช่การยืนยันสถานการณ์จริง'}</Label></Card>
-                {currentForecast.forecast.warning ? <Card className="mt-2 border-amber-200 bg-amber-50"><Label className="font-bold text-amber-800">ข้อควรทราบ</Label><Label className="mt-1 text-xs leading-5 text-amber-800">{currentForecast.forecast.warning}</Label></Card> : null}
+                <PredictionWarnings prediction={currentForecast.forecast} />
               </>}
       </ScrollView></View>}
 

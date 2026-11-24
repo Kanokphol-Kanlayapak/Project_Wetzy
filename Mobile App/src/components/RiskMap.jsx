@@ -1,10 +1,15 @@
+import { useMemo } from 'react';
 import { Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { createOpenStreetMapHtml } from './openstreetmap-html';
 
 export function RiskMap({ areas, onSelect }) {
-  const locations = areas.filter((area) => Number.isFinite(area.latitude) && Number.isFinite(area.longitude));
-  const html = createOpenStreetMapHtml(locations);
+  const locations = useMemo(
+    () => areas.filter((area) => Number.isFinite(area.latitude) && Number.isFinite(area.longitude)),
+    [areas],
+  );
+  const html = useMemo(() => createOpenStreetMapHtml(locations), [locations]);
+  const source = useMemo(() => ({ html }), [html]);
 
   const handleMessage = (event) => {
     const match = /^wetzy-area:(\d+)$/.exec(event.nativeEvent.data);
@@ -19,7 +24,7 @@ export function RiskMap({ areas, onSelect }) {
   return <View className="min-h-[350px] flex-1 overflow-hidden rounded-3xl border border-sky-200 bg-white">
     {locations.length
       ? <WebView
-          source={{ html }}
+          source={source}
           originWhitelist={['*']}
           javaScriptEnabled
           onMessage={handleMessage}

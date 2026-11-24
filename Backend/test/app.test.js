@@ -7,6 +7,7 @@ let mlServer;
 let mlUrl;
 let apiServer;
 let apiUrl;
+let receivedPredictionInput;
 
 function listen(server) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => {
@@ -24,6 +25,24 @@ before(async () => {
         model_available: false,
         forecast: { timing_mismatch: true },
       }));
+      return;
+    }
+
+    if (request.method === 'POST' && request.url === '/predict') {
+      let body = '';
+      request.on('data', (chunk) => { body += chunk; });
+      request.on('end', () => {
+        receivedPredictionInput = JSON.parse(body);
+        response.end(JSON.stringify({
+          prediction: {
+            target: 'flood_next_day',
+            predicted_class: 0,
+            flood_probability: 0.05,
+            forecast_horizon_days: 1,
+            probabilities_calibrated: true,
+          },
+        }));
+      });
       return;
     }
 
@@ -81,6 +100,42 @@ test('province filters are forwarded to the ML area endpoint', async () => {
   assert.deepEqual(await response.json(), {
     areas: [{ id: 'test-area', district: 'Test District' }],
   });
+});
+
+test('prediction inputs are forwarded to the trained-model service', async () => {
+  const input = {
+    district: 'Test District',
+    rain_next_24h_mm: 12.5,
+    temperature_2m: 29,
+  };
+  const response = await fetch(`${apiUrl}/api/predictions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(receivedPredictionInput, input);
+  assert.deepEqual(await response.json(), {
+    prediction: {
+      target: 'flood_next_day',
+      predicted_class: 0,
+      flood_probability: 0.05,
+      forecast_horizon_days: 1,
+      probabilities_calibrated: true,
+    },
+  });
+});
+
+test('non-object prediction inputs are rejected', async () => {
+  const response = await fetch(`${apiUrl}/api/predictions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify([]),
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).error.code, 'INVALID_PREDICTION_INPUT');
 });
 
 test('empty or repeated province filters are rejected', async () => {

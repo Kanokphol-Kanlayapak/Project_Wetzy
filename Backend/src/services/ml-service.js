@@ -7,13 +7,18 @@ class MlServiceError extends Error {
   }
 }
 
-async function requestMlService(path, config) {
+async function requestMlService(path, config, options = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), config.mlServiceTimeoutMs);
 
   try {
+    const headers = { Accept: 'application/json' };
+    if (options.body !== undefined) headers['Content-Type'] = 'application/json';
+
     const response = await fetch(`${config.mlServiceUrl}${path}`, {
-      headers: { Accept: 'application/json' },
+      method: options.method || 'GET',
+      headers,
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
       signal: controller.signal,
     });
     const text = await response.text();
@@ -27,10 +32,12 @@ async function requestMlService(path, config) {
 
     if (!response.ok) {
       const detail = payload?.detail || payload?.error || {};
+      const detailObject = typeof detail === 'object' && !Array.isArray(detail) ? detail : {};
+      const detailMessage = typeof detail === 'string' ? detail : detailObject.message;
       throw new MlServiceError(
         response.status,
-        detail.code || 'ML_SERVICE_ERROR',
-        detail.message || detail || 'Machine Learning service request failed',
+        detailObject.code || (response.status === 422 ? 'INVALID_PREDICTION_INPUT' : 'ML_SERVICE_ERROR'),
+        detailMessage || 'Machine Learning service request failed',
       );
     }
 

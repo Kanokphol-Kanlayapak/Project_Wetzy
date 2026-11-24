@@ -1,6 +1,6 @@
 function readConfig() {
   const port = Number(process.env.PORT || 3000);
-  const mlServiceTimeoutMs = Number(process.env.ML_SERVICE_TIMEOUT_MS || 15000);
+  const mlServiceTimeoutMs = Number(process.env.ML_SERVICE_TIMEOUT_MS || 120000);
 
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error('PORT must be an integer between 1 and 65535');

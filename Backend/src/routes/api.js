@@ -25,6 +25,7 @@ function createApiRouter(config) {
   router.get('/areas', controller.list);
   router.get('/areas/:district/forecast', validateDistrict, controller.forecast);
   router.get('/areas/:district', validateDistrict, controller.detail);
+  router.post('/predictions', controller.predict);
 
   return router;
 }
